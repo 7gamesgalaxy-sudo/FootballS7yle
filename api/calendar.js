@@ -23,14 +23,31 @@ module.exports = async function handler(req, res) {
   const headers = { 'x-apisports-key': apiKey, 'Accept': 'application/json' };
   const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
 
-  async function apiGet(path) {
-    const response = await fetch('https://v3.football.api-sports.io' + path, { headers });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || (data.errors && Object.keys(data.errors).length)) {
-      throw new Error('API-Football returned an error.');
-    }
-    return data.response || [];
+    
+async function apiGet(path) {
+  const response = await fetch(
+    'https://v3.football.api-sports.io' + path,
+    { headers: { 'x-apisports-key': apiKey } }
+  );
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok || (data.errors && Object.keys(data.errors).length > 0)) {
+    console.error('API-Football detalle:', {
+      httpStatus: response.status,
+      errors: data.errors,
+      message: data.message
+    });
+
+    throw new Error(
+      'API-Football HTTP ' + response.status + ': ' +
+      JSON.stringify(data.errors || data.message || 'Error desconocido')
+    );
   }
+
+  return data.response || [];
+}
+
 
   try {
     const teams = await apiGet('/teams?search=' + encodeURIComponent(teamName));
