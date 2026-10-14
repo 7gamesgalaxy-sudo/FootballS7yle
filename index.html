@@ -2778,18 +2778,44 @@
                                             }
 
 
-                                            function openTeamCalendar(teamName) {
+                                            async function openTeamCalendar(teamName) {
                                                 const modal = document.getElementById('team-calendar-modal');
                                                 const teamTitle = document.getElementById('calendar-team-name');
                                                 const calendarList = document.getElementById('team-calendar-list');
                                                 if (!modal || !teamTitle || !calendarList) return;
 
                                                 teamTitle.textContent = teamName;
-                                                calendarList.innerHTML = '';
+                                                calendarList.innerHTML = `
+                                                    <div style="padding:28px 18px;text-align:center;color:#a9c8c1;">
+                                                        <div style="color:#f4d65e;font-size:12px;letter-spacing:.08em;margin-bottom:8px;">CONSULTANDO CALENDARIO</div>
+                                                        <div style="font-size:12px;">Buscando resultados y próximos encuentros reales…</div>
+                                                    </div>`;
+                                                modal.style.display = 'flex';
+                                                modal.setAttribute('aria-hidden', 'false');
+                                                document.body.classList.add('calendar-modal-open');
+                                                requestAnimationFrame(() => modal.classList.add('calendar-open'));
 
-                                                // La interfaz solo muestra los 2 resultados más recientes y los 2 próximos.
-                                                // La fuente real debe inyectar fixtures en window.FS7_MATCHES_DATA.
-                                                // Formato esperado: {date, homeTeam, awayTeam, homeScore, awayScore, status, round?}
+                                                try {
+                                                    const response = await fetch('/api/calendar?team=' + encodeURIComponent(teamName), {
+                                                        method: 'GET',
+                                                        headers: {'Accept': 'application/json'}
+                                                    });
+                                                    const payload = await response.json().catch(() => ({}));
+                                                    if (!response.ok) {
+                                                        throw new Error(payload.error || 'No fue posible consultar el calendario.');
+                                                    }
+                                                    window.FS7_MATCHES_DATA = Array.isArray(payload.matches) ? payload.matches : [];
+                                                } catch (error) {
+                                                    console.error('Football S7yle calendar:', error);
+                                                    calendarList.innerHTML = `
+                                                        <div style="padding:28px 18px;text-align:center;border:1px solid rgba(244,214,94,.18);border-radius:14px;background:rgba(1,20,17,.35);">
+                                                            <div style="font-size:12px;letter-spacing:.08em;color:#f4d65e;margin-bottom:9px;">CALENDARIO NO DISPONIBLE</div>
+                                                            <div style="font-size:12px;line-height:1.7;color:#a9c8c1;">No pudimos obtener los partidos en este momento. Inténtalo de nuevo más tarde.</div>
+                                                        </div>`;
+                                                    return;
+                                                }
+
+                                                // La API devuelve únicamente los dos últimos resultados y los dos próximos encuentros.
                                                 const allMatches = Array.isArray(window.FS7_MATCHES_DATA) ? window.FS7_MATCHES_DATA : [];
                                                 const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
                                                 const target = normalize(teamName);
@@ -2798,8 +2824,8 @@
                                                     normalize(match.homeTeam) === target || normalize(match.awayTeam) === target
                                                 ).map(match => {
                                                     const date = new Date(match.date);
-                                                    const finished = ['FT','AET','PEN','FINAL','FINISHED'].includes(String(match.status || '').toUpperCase()) ||
-                                                        (match.homeScore !== null && match.homeScore !== undefined && match.awayScore !== null && match.awayScore !== undefined && date < now);
+                                                    const status = String(match.status || '').toUpperCase();
+                                                    const finished = ['FT','AET','PEN','FINAL','FINISHED'].includes(status);
                                                     const isHome = normalize(match.homeTeam) === target;
                                                     const opponent = isHome ? match.awayTeam : match.homeTeam;
                                                     const hasScore = match.homeScore !== null && match.homeScore !== undefined && match.awayScore !== null && match.awayScore !== undefined;
@@ -2814,24 +2840,19 @@
 
                                                 if (!matches.length) {
                                                     calendarList.innerHTML = `
-                                                        <div style="padding:28px 18px; text-align:center; border:1px solid rgba(24,255,208,.16); border-radius:14px; background:rgba(1,20,17,.35);">
-                                                            <div style="font-size:12px; letter-spacing:.08em; color:#f4d65e; margin-bottom:9px;">SIN PARTIDOS DISPONIBLES</div>
-                                                            <div style="font-size:12px; line-height:1.7; color:#a9c8c1;">Todavía no hay datos reales de encuentros conectados para este club. No mostraremos marcadores de prueba.</div>
+                                                        <div style="padding:28px 18px;text-align:center;border:1px solid rgba(24,255,208,.16);border-radius:14px;background:rgba(1,20,17,.35);">
+                                                            <div style="font-size:12px;letter-spacing:.08em;color:#f4d65e;margin-bottom:9px;">SIN PARTIDOS DISPONIBLES</div>
+                                                            <div style="font-size:12px;line-height:1.7;color:#a9c8c1;">La API no devolvió encuentros disponibles para este club. No mostraremos marcadores de prueba.</div>
                                                         </div>`;
                                                 } else {
-                                                    const sectionLabel = (label) => `<div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.12em;color:#f4d65e;margin:14px 0 8px;">${label}</div>`;
-                                                    let html = '';
-                                                    if (past.length) html += sectionLabel('ÚLTIMOS RESULTADOS');
-                                                    html += past.map(match => renderFs7CalendarMatch(match, teamName)).join('');
-                                                    if (upcoming.length) html += sectionLabel('PRÓXIMOS ENCUENTROS');
-                                                    html += upcoming.map(match => renderFs7CalendarMatch(match, teamName)).join('');
-                                                    calendarList.innerHTML = html;
+                                                    const sectionLabel = label => `<div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.12em;color:#f4d65e;margin:14px 0 8px;">${label}</div>`;
+                                                    let output = '';
+                                                    if (past.length) output += sectionLabel('ÚLTIMOS RESULTADOS');
+                                                    output += past.map(match => renderFs7CalendarMatch(match, teamName)).join('');
+                                                    if (upcoming.length) output += sectionLabel('PRÓXIMOS ENCUENTROS');
+                                                    output += upcoming.map(match => renderFs7CalendarMatch(match, teamName)).join('');
+                                                    calendarList.innerHTML = output;
                                                 }
-
-                                                modal.style.display = 'flex';
-                                                modal.setAttribute('aria-hidden', 'false');
-                                                document.body.classList.add('calendar-modal-open');
-                                                requestAnimationFrame(() => modal.classList.add('calendar-open'));
                                             }
 
                                             function renderFs7CalendarMatch(match, teamName) {
