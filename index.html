@@ -1251,7 +1251,17 @@
                 justify-content: center
             }
         }
-    </style>
+    
+        /* Escudos fijos estilo Nexus para ligas y clubes */
+        .fs7-crest{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:27px;height:31px;clip-path:polygon(8% 0,92% 0,100% 12%,94% 72%,50% 100%,6% 72%,0 12%);background:linear-gradient(145deg,#143d36,#031a17);border:1px solid rgba(24,255,208,.75);color:#18ffd0;font:900 8px/1 "Space Mono",monospace;letter-spacing:-.5px;text-shadow:0 0 7px rgba(24,255,208,.4);box-shadow:0 0 10px rgba(24,255,208,.13);vertical-align:middle;}
+        .fs7-crest.league-crest{width:32px;height:36px;color:#f4d65e;border:1px solid rgba(244,214,94,.8);font-size:9px;background:linear-gradient(145deg,#273a31,#071c18);}
+        .fs7-club-crest{margin-right:7px;transform:translateY(2px);}
+        .fs7-league-crest{margin-right:8px;}
+        #fs7-team-preview{display:flex;align-items:center;gap:10px;padding:9px 11px;margin-top:8px;border:1px solid rgba(24,255,208,.25);border-radius:8px;background:rgba(2,23,20,.72);min-height:52px;}
+        #fs7-team-preview .preview-name{color:#e6fff8;font-weight:700;font-size:12px;}
+        #fs7-team-preview .preview-sub{color:#70a99e;font:10px "Space Mono",monospace;margin-top:3px;}
+        .fs7-nav-crest{margin-right:7px;width:22px;height:25px;font-size:7px;}
+</style>
 
 </head>
 <body>
@@ -1285,7 +1295,11 @@
                 </div>
                 <div>
                     <label class="block text-xs mono text-[#9abcb4] mb-1">EQUIPO O FRANQUICIA</label>
-                    <input class="form-input" id="fs7-team" placeholder="Ej. Club Santos Laguna" required="" type="text" />
+                    <select class="form-input" id="fs7-team" required>
+                        <option value="">Selecciona primero una liga...</option>
+                    </select>
+                    <div id="fs7-team-preview" aria-live="polite"><span class="fs7-crest">FS7</span><div><div class="preview-name">Selecciona un equipo</div><div class="preview-sub">ESCUDO DEL CLUB</div></div></div>
+                    <p class="text-[10px] mono text-[#6faaa0] mt-1">Los equipos se cargan desde la tabla de la liga y los registros existentes.</p>
                 </div>
                 <div class="grid grid-cols-3 gap-2">
                     <div>
@@ -1352,7 +1366,7 @@
                 </details>
                 <div>
                     <label class="block text-xs mono text-[#9abcb4] mb-1">NOTAS / OBSERVACIONES POISSON</label>
-<textarea id="fs7-notes" class="form-input" placeholder="Parámetros analíticos..." rows="3" aria-label="Notas u observaciones"></textarea>
+<textarea class="form-input" placeholder="Parámetros analíticos..." rows="3"></textarea>
                 </div>
                 <button id="fs7-submit" class="w-full py-3 rounded-lg bg-[#18ffd0] text-[#021210] font-bold mono text-xs tracking-wider transition-all hover:bg-white cursor-pointer mt-4" type="submit">
                     REGISTRAR EN EL DASHBOARD
@@ -2778,44 +2792,18 @@
                                             }
 
 
-                                            async function openTeamCalendar(teamName) {
+                                            function openTeamCalendar(teamName) {
                                                 const modal = document.getElementById('team-calendar-modal');
                                                 const teamTitle = document.getElementById('calendar-team-name');
                                                 const calendarList = document.getElementById('team-calendar-list');
                                                 if (!modal || !teamTitle || !calendarList) return;
 
                                                 teamTitle.textContent = teamName;
-                                                calendarList.innerHTML = `
-                                                    <div style="padding:28px 18px;text-align:center;color:#a9c8c1;">
-                                                        <div style="color:#f4d65e;font-size:12px;letter-spacing:.08em;margin-bottom:8px;">CONSULTANDO CALENDARIO</div>
-                                                        <div style="font-size:12px;">Buscando resultados y próximos encuentros reales…</div>
-                                                    </div>`;
-                                                modal.style.display = 'flex';
-                                                modal.setAttribute('aria-hidden', 'false');
-                                                document.body.classList.add('calendar-modal-open');
-                                                requestAnimationFrame(() => modal.classList.add('calendar-open'));
+                                                calendarList.innerHTML = '';
 
-                                                try {
-                                                    const response = await fetch('/api/calendar?team=' + encodeURIComponent(teamName), {
-                                                        method: 'GET',
-                                                        headers: {'Accept': 'application/json'}
-                                                    });
-                                                    const payload = await response.json().catch(() => ({}));
-                                                    if (!response.ok) {
-                                                        throw new Error(payload.error || 'No fue posible consultar el calendario.');
-                                                    }
-                                                    window.FS7_MATCHES_DATA = Array.isArray(payload.matches) ? payload.matches : [];
-                                                } catch (error) {
-                                                    console.error('Football S7yle calendar:', error);
-                                                    calendarList.innerHTML = `
-                                                        <div style="padding:28px 18px;text-align:center;border:1px solid rgba(244,214,94,.18);border-radius:14px;background:rgba(1,20,17,.35);">
-                                                            <div style="font-size:12px;letter-spacing:.08em;color:#f4d65e;margin-bottom:9px;">CALENDARIO NO DISPONIBLE</div>
-                                                            <div style="font-size:12px;line-height:1.7;color:#a9c8c1;">No pudimos obtener los partidos en este momento. Inténtalo de nuevo más tarde.</div>
-                                                        </div>`;
-                                                    return;
-                                                }
-
-                                                // La API devuelve únicamente los dos últimos resultados y los dos próximos encuentros.
+                                                // La interfaz solo muestra los 2 resultados más recientes y los 2 próximos.
+                                                // La fuente real debe inyectar fixtures en window.FS7_MATCHES_DATA.
+                                                // Formato esperado: {date, homeTeam, awayTeam, homeScore, awayScore, status, round?}
                                                 const allMatches = Array.isArray(window.FS7_MATCHES_DATA) ? window.FS7_MATCHES_DATA : [];
                                                 const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
                                                 const target = normalize(teamName);
@@ -2824,8 +2812,8 @@
                                                     normalize(match.homeTeam) === target || normalize(match.awayTeam) === target
                                                 ).map(match => {
                                                     const date = new Date(match.date);
-                                                    const status = String(match.status || '').toUpperCase();
-                                                    const finished = ['FT','AET','PEN','FINAL','FINISHED'].includes(status);
+                                                    const finished = ['FT','AET','PEN','FINAL','FINISHED'].includes(String(match.status || '').toUpperCase()) ||
+                                                        (match.homeScore !== null && match.homeScore !== undefined && match.awayScore !== null && match.awayScore !== undefined && date < now);
                                                     const isHome = normalize(match.homeTeam) === target;
                                                     const opponent = isHome ? match.awayTeam : match.homeTeam;
                                                     const hasScore = match.homeScore !== null && match.homeScore !== undefined && match.awayScore !== null && match.awayScore !== undefined;
@@ -2840,19 +2828,24 @@
 
                                                 if (!matches.length) {
                                                     calendarList.innerHTML = `
-                                                        <div style="padding:28px 18px;text-align:center;border:1px solid rgba(24,255,208,.16);border-radius:14px;background:rgba(1,20,17,.35);">
-                                                            <div style="font-size:12px;letter-spacing:.08em;color:#f4d65e;margin-bottom:9px;">SIN PARTIDOS DISPONIBLES</div>
-                                                            <div style="font-size:12px;line-height:1.7;color:#a9c8c1;">La API no devolvió encuentros disponibles para este club. No mostraremos marcadores de prueba.</div>
+                                                        <div style="padding:28px 18px; text-align:center; border:1px solid rgba(24,255,208,.16); border-radius:14px; background:rgba(1,20,17,.35);">
+                                                            <div style="font-size:12px; letter-spacing:.08em; color:#f4d65e; margin-bottom:9px;">SIN PARTIDOS DISPONIBLES</div>
+                                                            <div style="font-size:12px; line-height:1.7; color:#a9c8c1;">Todavía no hay datos reales de encuentros conectados para este club. No mostraremos marcadores de prueba.</div>
                                                         </div>`;
                                                 } else {
-                                                    const sectionLabel = label => `<div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.12em;color:#f4d65e;margin:14px 0 8px;">${label}</div>`;
-                                                    let output = '';
-                                                    if (past.length) output += sectionLabel('ÚLTIMOS RESULTADOS');
-                                                    output += past.map(match => renderFs7CalendarMatch(match, teamName)).join('');
-                                                    if (upcoming.length) output += sectionLabel('PRÓXIMOS ENCUENTROS');
-                                                    output += upcoming.map(match => renderFs7CalendarMatch(match, teamName)).join('');
-                                                    calendarList.innerHTML = output;
+                                                    const sectionLabel = (label) => `<div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.12em;color:#f4d65e;margin:14px 0 8px;">${label}</div>`;
+                                                    let html = '';
+                                                    if (past.length) html += sectionLabel('ÚLTIMOS RESULTADOS');
+                                                    html += past.map(match => renderFs7CalendarMatch(match, teamName)).join('');
+                                                    if (upcoming.length) html += sectionLabel('PRÓXIMOS ENCUENTROS');
+                                                    html += upcoming.map(match => renderFs7CalendarMatch(match, teamName)).join('');
+                                                    calendarList.innerHTML = html;
                                                 }
+
+                                                modal.style.display = 'flex';
+                                                modal.setAttribute('aria-hidden', 'false');
+                                                document.body.classList.add('calendar-modal-open');
+                                                requestAnimationFrame(() => modal.classList.add('calendar-open'));
                                             }
 
                                             function renderFs7CalendarMatch(match, teamName) {
@@ -2982,8 +2975,7 @@
                           window.setNexusLanguage=setNexusLanguage;
                           document.addEventListener('DOMContentLoaded',()=>{
                             collect();
-                            let saved='es';
-                            try { saved=localStorage.getItem('nexusLanguage') || 'es'; } catch (_) {}
+                            const saved=localStorage.getItem('nexusLanguage') || 'es';
                             setNexusLanguage(saved);
                           });
 })();
@@ -3088,10 +3080,10 @@ function fs7UpdateVisibleRow(league, teamName, stats) {
                   if (!cfg) return false;
                   const section = document.getElementById(cfg.slug);
                   if (!section) return false;
-                  const target = fs7NormalizeTeamName(teamName);
+                  const target = String(teamName).trim().toLowerCase();
                   for (const row of section.querySelectorAll('tbody tr')) {
                     const nameEl = row.querySelector('.nexus-club-name');
-                    if (!nameEl || fs7NormalizeTeamName(nameEl.textContent) !== target) continue;
+                    if (!nameEl || nameEl.textContent.trim().toLowerCase() !== target) continue;
                     const cells = row.querySelectorAll('td');
                     const values = [stats.pj,stats.g,stats.e,stats.p,stats.pts,stats.dg,stats.gf,stats.gc,stats.dg_goals,
                       stats.home_pj,stats.home_g,stats.home_e,stats.home_p,stats.home_gf,stats.home_gc,
@@ -3136,23 +3128,13 @@ async function fs7CreateLeague(league) {
                   return rows[0];
 }
 
-function fs7NormalizeTeamName(value) {
-                  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-                    .trim().replace(/\s+/g, ' ').toLocaleLowerCase('es');
-}
-
 async function fs7GetTeam(leagueId, teamName) {
-                  // Leer por liga y comparar nombres normalizados evita crear otra ficha
-                  // por diferencias de mayúsculas, acentos o espacios. Si ya hay duplicados,
-                  // elegir siempre el registro más antiguo como referencia estable.
                   const rows = await fs7Request(
                     'fs7_teams?league_id=eq.' + encodeURIComponent(leagueId) +
-                    '&select=id,league_id,name,sort_order,last5,created_at&order=created_at.asc,id.asc&limit=500'
+                    '&name=eq.' + encodeURIComponent(teamName) +
+                    '&select=id,league_id,name,sort_order,last5&limit=1'
                   );
-                  const wanted = fs7NormalizeTeamName(teamName);
-                  return Array.isArray(rows)
-                    ? (rows.find(row => fs7NormalizeTeamName(row.name) === wanted) || null)
-                    : null;
+                  return rows && rows[0] ? rows[0] : null;
 }
 
 async function fs7CreateTeam(leagueId, teamName) {
@@ -3165,11 +3147,9 @@ async function fs7CreateTeam(leagueId, teamName) {
 }
 
 async function fs7SaveStats(teamId, stats) {
-                  // team_id debe tener una sola ficha estadística. Si hay una existente,
-                  // se actualiza; de lo contrario, se crea. Se comprueba la respuesta HTTP.
                   const existing = await fs7Request('fs7_team_stats?team_id=eq.' + encodeURIComponent(teamId) + '&select=team_id&limit=1');
                   const body = {team_id:teamId, ...stats};
-                  if (Array.isArray(existing) && existing.length) {
+                  if (existing && existing[0]) {
                     return fs7Request('fs7_team_stats?team_id=eq.' + encodeURIComponent(teamId), {method:'PATCH', prefer:'return=representation', body:JSON.stringify(body)});
                   }
                   return fs7Request('fs7_team_stats', {method:'POST', prefer:'return=representation', body:JSON.stringify(body)});
@@ -3217,48 +3197,165 @@ async function fs7SyncSavedStatsToScreen() {
                       const cfg = Object.values(FS7_LEAGUES).find(x => x.slug === dbLeague.slug);
                       if (!cfg) continue;
 
-                      // El orden cronológico es intencional: si existen fichas duplicadas,
-                      // la primera (más antigua) gana y las siguientes no pisan la tabla.
                       const teams = await fs7Request(
                         'fs7_teams?league_id=eq.' + encodeURIComponent(dbLeague.id) +
-                        '&select=id,name,created_at,fs7_team_stats(*)&order=created_at.asc,id.asc&limit=500'
+                        '&select=id,name,fs7_team_stats(*)&limit=100'
                       );
                       if (!Array.isArray(teams)) continue;
 
-                      const seen = new Set();
-                      const leagueKey = Object.keys(FS7_LEAGUES).find(k => FS7_LEAGUES[k].slug === cfg.slug);
-                      if (!leagueKey) continue;
                       for (const team of teams) {
-                        const key = fs7NormalizeTeamName(team.name);
-                        if (!key || seen.has(key)) continue;
-                        seen.add(key);
                         const stats = Array.isArray(team.fs7_team_stats) ? team.fs7_team_stats[0] : team.fs7_team_stats;
-                        if (stats) fs7UpdateVisibleRow(leagueKey, team.name, stats);
+                        if (!stats) continue;
+                        const leagueKey = Object.keys(FS7_LEAGUES).find(k => FS7_LEAGUES[k].slug === cfg.slug);
+                        if (leagueKey) fs7UpdateVisibleRow(leagueKey, team.name, stats);
                       }
                     }
                   } catch (error) {
                     console.warn('Football S7yle / no se pudieron sincronizar los datos guardados:', error);
                   }
 }
+
+async function fs7LoadSelectedTeamIntoForm() {
+                  const teamSelect = document.getElementById('fs7-team');
+                  const leagueSelect = document.getElementById('fs7-league');
+                  const name = teamSelect?.value;
+                  const league = leagueSelect?.value;
+                  if (!name || !league) return;
+                  try {
+                    const dbLeague = await fs7GetLeague(league);
+                    if (!dbLeague) return;
+                    const dbTeam = await fs7GetTeam(dbLeague.id, name);
+                    if (!dbTeam) return;
+                    const rows = await fs7Request('fs7_team_stats?team_id=eq.' + encodeURIComponent(dbTeam.id) + '&select=*&limit=1');
+                    if (rows && rows[0]) fs7FillFormFromStats(rows[0]);
+                    else fs7ClearStatsForm();
+                  } catch (error) {
+                    console.warn('No se pudieron cargar las estadísticas del equipo:', error);
+                  }
+}
+
+function fs7ClearStatsForm() {
+                  const ids = ['fs7-pj','fs7-g','fs7-pts','fs7-e','fs7-p','fs7-dg','fs7-gf','fs7-gc','fs7-dg-goals',
+                    'fs7-home-pj','fs7-home-g','fs7-home-e','fs7-home-p','fs7-home-gf','fs7-home-gc',
+                    'fs7-away-pj','fs7-away-g','fs7-away-e','fs7-away-p','fs7-away-gf','fs7-away-gc',
+                    'fs7-shots-ta','fs7-shots-tf','fs7-shots-tc','fs7-corners-cf','fs7-corners-cc'];
+                  ids.forEach(id => fs7SetInput(id, '0'));
+                  const notes = document.querySelector('#fs7-data-form textarea');
+                  if (notes) notes.value = '';
+}
+
+const FS7_LEAGUE_MARKS = {
+  'Premier League (Inglaterra)': 'EPL', 'Serie A (Italia)': 'SA',
+  'La Liga (España)': 'LL', 'Bundesliga (Alemania)': 'BL',
+  'Liga MX (México)': 'MX', 'MLS (EE.UU.)': 'MLS',
+  'Liga Profesional (Argentina)': 'LPF'
+};
+function fs7Initials(name) {
+  const clean = String(name || '').replace(/\(.*?\)/g, '').trim();
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (!words.length) return 'FS7';
+  const ignore = new Set(['fc','afc','cf','sc','club','de','the','united']);
+  const useful = words.filter(w => !ignore.has(w.toLowerCase()));
+  const chosen = useful.length ? useful : words;
+  return (chosen.length > 1 ? chosen[0][0] + chosen[1][0] : chosen[0].slice(0,3)).toUpperCase();
+}
+function fs7Badge(label, league=false) {
+  const badge = document.createElement('span');
+  badge.className = 'fs7-crest' + (league ? ' league-crest' : '');
+  badge.setAttribute('aria-hidden','true');
+  badge.textContent = label;
+  return badge;
+}
+function fs7UpdateTeamPreview() {
+  const league = document.getElementById('fs7-league')?.value || '';
+  const team = document.getElementById('fs7-team')?.value || '';
+  const preview = document.getElementById('fs7-team-preview');
+  if (!preview) return;
+  preview.innerHTML = '';
+  preview.appendChild(fs7Badge(team ? fs7Initials(team) : (FS7_LEAGUE_MARKS[league] || 'FS7')));
+  const info = document.createElement('div');
+  const name = document.createElement('div'); name.className='preview-name';
+  name.textContent = team || 'Selecciona un equipo';
+  const sub = document.createElement('div'); sub.className='preview-sub';
+  sub.textContent = team ? 'ESCUDO IDENTIFICATIVO DEL CLUB' : (league.toUpperCase() || 'FOOTBALL S7YLE');
+  info.append(name,sub); preview.appendChild(info);
+}
+function fs7DecorateLeagueNavigation() {
+  document.querySelectorAll('nav a, aside a, .league-nav a, .league-button, .nexus-league-name').forEach(el => {
+    if (el.querySelector('.fs7-crest')) return;
+    const text = (el.textContent || '').trim();
+    const mark = text.match(/Premier|Serie A|La Liga|Bundesliga|Liga MX|MLS|Argentina|Profesional/i);
+    if (!mark) return;
+    const code = /Premier/i.test(text)?'EPL':/Serie A/i.test(text)?'SA':/La Liga/i.test(text)?'LL':/Bundesliga/i.test(text)?'BL':/Liga MX/i.test(text)?'MX':/MLS/i.test(text)?'MLS':'LPF';
+    el.prepend(fs7Badge(code));
+  });
+}
+function fs7DecorateClubRows() {
+  document.querySelectorAll('.nexus-club-name').forEach(el => {
+    if (el.querySelector('.fs7-crest')) return;
+    const name = el.textContent.trim();
+    el.prepend(fs7Badge(fs7Initials(name)));
+    const badge = el.querySelector('.fs7-crest'); if (badge) badge.classList.add('fs7-club-crest');
+  });
+}
+
+async function fs7LoadTeamsForLeague() {
+                  const leagueSelect = document.getElementById('fs7-league');
+                  const teamSelect = document.getElementById('fs7-team');
+                  if (!leagueSelect || !teamSelect) return;
+                  const league = leagueSelect.value;
+                  const cfg = FS7_LEAGUES[league];
+                  const previous = teamSelect.value;
+                  const names = new Set();
+
+                  // Prioridad: equipos que ya aparecen en la tabla visual de esa liga.
+                  const section = cfg ? document.getElementById(cfg.slug) : null;
+                  if (section) {
+                    section.querySelectorAll('tbody tr .nexus-club-name').forEach(el => {
+                      const name = el.textContent.trim();
+                      if (name) names.add(name);
+                    });
+                  }
+
+                  // Añadir también los equipos ya registrados en Supabase.
+                  try {
+                    const dbLeague = await fs7GetLeague(league);
+                    if (dbLeague) {
+                      const teams = await fs7Request('fs7_teams?league_id=eq.' + encodeURIComponent(dbLeague.id) + '&select=name&order=name.asc&limit=200');
+                      (teams || []).forEach(team => { if (team.name) names.add(team.name); });
+                    }
+                  } catch (error) {
+                    console.warn('No se pudieron consultar equipos guardados; se usarán los de la tabla:', error);
+                  }
+
+                  teamSelect.innerHTML = '';
+                  const placeholder = document.createElement('option');
+                  placeholder.value = '';
+                  placeholder.textContent = names.size ? 'Selecciona un equipo...' : 'No hay equipos disponibles';
+                  teamSelect.appendChild(placeholder);
+                  [...names].sort((a,b) => a.localeCompare(b, 'es')).forEach(name => {
+                    const option = document.createElement('option');
+                    option.value = name;
+                    option.textContent = name;
+                    teamSelect.appendChild(option);
+                  });
+                  if (previous && names.has(previous)) teamSelect.value = previous;
+                  else fs7ClearStatsForm();
+                  fs7UpdateTeamPreview();
+                  fs7DecorateClubRows();
+                  fs7DecorateLeagueNavigation();
+}
+
 window.addEventListener('DOMContentLoaded', () => {
                   setTimeout(fs7SyncSavedStatsToScreen, 250);
-                  const teamInput = document.getElementById('fs7-team');
-                  const leagueInput = document.getElementById('fs7-league');
-                  async function loadExistingTeamIntoForm(){
-                    const name = teamInput?.value.trim();
-                    const league = leagueInput?.value;
-                    if (!name || !league) return;
-                    try {
-                      const dbLeague = await fs7GetLeague(league);
-                      if (!dbLeague) return;
-                      const dbTeam = await fs7GetTeam(dbLeague.id,name);
-                      if (!dbTeam) return;
-                      const rows = await fs7Request('fs7_team_stats?team_id=eq.' + encodeURIComponent(dbTeam.id) + '&select=*&limit=1');
-                      if (rows && rows[0]) fs7FillFormFromStats(rows[0]);
-                    } catch (_) {}
-                  }
-                  teamInput?.addEventListener('blur', loadExistingTeamIntoForm);
-                  leagueInput?.addEventListener('change', loadExistingTeamIntoForm);
+                  fs7DecorateClubRows();
+                  fs7DecorateLeagueNavigation();
+                  fs7UpdateTeamPreview();
+                  const teamSelect = document.getElementById('fs7-team');
+                  const leagueSelect = document.getElementById('fs7-league');
+                  leagueSelect?.addEventListener('change', () => { fs7UpdateTeamPreview(); fs7LoadTeamsForLeague(); });
+                  teamSelect?.addEventListener('change', async () => { fs7UpdateTeamPreview(); await fs7LoadSelectedTeamIntoForm(); });
+                  fs7LoadTeamsForLeague();
 });
     </script>
 </body>
