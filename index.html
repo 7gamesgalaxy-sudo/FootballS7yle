@@ -3075,15 +3075,26 @@ function fs7SetInput(id, value) {
                   if (el && value !== null && value !== undefined) el.value = value;
 }
 
+function fs7CleanClubName(element) {
+                  if (!element) return '';
+                  const clone = element.cloneNode(true);
+                  clone.querySelectorAll('.fs7-crest, .fs7-club-crest, .league-crest').forEach(badge => badge.remove());
+                  return (clone.textContent || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function fs7NormalizeTeamName(name) {
+                  return String(name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim().toLocaleLowerCase('es');
+}
+
 function fs7UpdateVisibleRow(league, teamName, stats) {
                   const cfg = FS7_LEAGUES[league];
                   if (!cfg) return false;
                   const section = document.getElementById(cfg.slug);
                   if (!section) return false;
-                  const target = String(teamName).trim().toLowerCase();
+                  const target = fs7NormalizeTeamName(teamName);
                   for (const row of section.querySelectorAll('tbody tr')) {
                     const nameEl = row.querySelector('.nexus-club-name');
-                    if (!nameEl || nameEl.textContent.trim().toLowerCase() !== target) continue;
+                    if (!nameEl || fs7NormalizeTeamName(fs7CleanClubName(nameEl)) !== target) continue;
                     const cells = row.querySelectorAll('td');
                     const values = [stats.pj,stats.g,stats.e,stats.p,stats.pts,stats.dg,stats.gf,stats.gc,stats.dg_goals,
                       stats.home_pj,stats.home_g,stats.home_e,stats.home_p,stats.home_gf,stats.home_gc,
@@ -3129,12 +3140,15 @@ async function fs7CreateLeague(league) {
 }
 
 async function fs7GetTeam(leagueId, teamName) {
+                  // Buscar por nombre normalizado: evita crear otro equipo por tildes,
+                  // mayúsculas, espacios o insignias visuales añadidas al HTML.
+                  const wanted = fs7NormalizeTeamName(teamName);
                   const rows = await fs7Request(
                     'fs7_teams?league_id=eq.' + encodeURIComponent(leagueId) +
-                    '&name=eq.' + encodeURIComponent(teamName) +
-                    '&select=id,league_id,name,sort_order,last5&limit=1'
+                    '&select=id,league_id,name,sort_order,last5&order=name.asc&limit=500'
                   );
-                  return rows && rows[0] ? rows[0] : null;
+                  if (!Array.isArray(rows)) return null;
+                  return rows.find(team => fs7NormalizeTeamName(team.name) === wanted) || null;
 }
 
 async function fs7CreateTeam(leagueId, teamName) {
@@ -3306,14 +3320,16 @@ async function fs7LoadTeamsForLeague() {
                   const league = leagueSelect.value;
                   const cfg = FS7_LEAGUES[league];
                   const previous = teamSelect.value;
-                  const names = new Set();
+                  // La clave normalizada evita duplicar opciones por tildes/case/espacios.
+                  const names = new Map();
 
-                  // Prioridad: equipos que ya aparecen en la tabla visual de esa liga.
+                  // Prioridad: equipos de la tabla visual, leyendo el nombre sin la insignia decorativa.
                   const section = cfg ? document.getElementById(cfg.slug) : null;
                   if (section) {
                     section.querySelectorAll('tbody tr .nexus-club-name').forEach(el => {
-                      const name = el.textContent.trim();
-                      if (name) names.add(name);
+                      const name = fs7CleanClubName(el);
+                      const key = fs7NormalizeTeamName(name);
+                      if (name && key && !names.has(key)) names.set(key, name);
                     });
                   }
 
@@ -3321,8 +3337,12 @@ async function fs7LoadTeamsForLeague() {
                   try {
                     const dbLeague = await fs7GetLeague(league);
                     if (dbLeague) {
-                      const teams = await fs7Request('fs7_teams?league_id=eq.' + encodeURIComponent(dbLeague.id) + '&select=name&order=name.asc&limit=200');
-                      (teams || []).forEach(team => { if (team.name) names.add(team.name); });
+                      const teams = await fs7Request('fs7_teams?league_id=eq.' + encodeURIComponent(dbLeague.id) + '&select=name&order=name.asc&limit=500');
+                      (teams || []).forEach(team => {
+                        const name = String(team.name || '').trim();
+                        const key = fs7NormalizeTeamName(name);
+                        if (name && key && !names.has(key)) names.set(key, name);
+                      });
                     }
                   } catch (error) {
                     console.warn('No se pudieron consultar equipos guardados; se usarán los de la tabla:', error);
@@ -3333,14 +3353,19 @@ async function fs7LoadTeamsForLeague() {
                   placeholder.value = '';
                   placeholder.textContent = names.size ? 'Selecciona un equipo...' : 'No hay equipos disponibles';
                   teamSelect.appendChild(placeholder);
-                  [...names].sort((a,b) => a.localeCompare(b, 'es')).forEach(name => {
+                  [...names.values()].sort((a,b) => a.localeCompare(b, 'es')).forEach(name => {
                     const option = document.createElement('option');
                     option.value = name;
                     option.textContent = name;
                     teamSelect.appendChild(option);
                   });
-                  if (previous && names.has(previous)) teamSelect.value = previous;
-                  else fs7ClearStatsForm();
+                  const previousKey = fs7NormalizeTeamName(previous);
+                  if (previousKey && names.has(previousKey)) {
+                    const canonicalName = names.get(previousKey);
+                    teamSelect.value = canonicalName;
+                  } else {
+                    fs7ClearStatsForm();
+                  }
                   fs7UpdateTeamPreview();
                   fs7DecorateClubRows();
                   fs7DecorateLeagueNavigation();
