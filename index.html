@@ -1352,7 +1352,7 @@
                 </details>
                 <div>
                     <label class="block text-xs mono text-[#9abcb4] mb-1">NOTAS / OBSERVACIONES POISSON</label>
-<textarea class="form-input" placeholder="Parámetros analíticos..." rows="3"></textarea>
+<textarea id="fs7-notes" class="form-input" placeholder="Parámetros analíticos..." rows="3" aria-label="Notas u observaciones"></textarea>
                 </div>
                 <button id="fs7-submit" class="w-full py-3 rounded-lg bg-[#18ffd0] text-[#021210] font-bold mono text-xs tracking-wider transition-all hover:bg-white cursor-pointer mt-4" type="submit">
                     REGISTRAR EN EL DASHBOARD
@@ -2982,7 +2982,8 @@
                           window.setNexusLanguage=setNexusLanguage;
                           document.addEventListener('DOMContentLoaded',()=>{
                             collect();
-                            const saved=localStorage.getItem('nexusLanguage') || 'es';
+                            let saved='es';
+                            try { saved=localStorage.getItem('nexusLanguage') || 'es'; } catch (_) {}
                             setNexusLanguage(saved);
                           });
 })();
@@ -3087,10 +3088,10 @@ function fs7UpdateVisibleRow(league, teamName, stats) {
                   if (!cfg) return false;
                   const section = document.getElementById(cfg.slug);
                   if (!section) return false;
-                  const target = String(teamName).trim().toLowerCase();
+                  const target = fs7NormalizeTeamName(teamName);
                   for (const row of section.querySelectorAll('tbody tr')) {
                     const nameEl = row.querySelector('.nexus-club-name');
-                    if (!nameEl || nameEl.textContent.trim().toLowerCase() !== target) continue;
+                    if (!nameEl || fs7NormalizeTeamName(nameEl.textContent) !== target) continue;
                     const cells = row.querySelectorAll('td');
                     const values = [stats.pj,stats.g,stats.e,stats.p,stats.pts,stats.dg,stats.gf,stats.gc,stats.dg_goals,
                       stats.home_pj,stats.home_g,stats.home_e,stats.home_p,stats.home_gf,stats.home_gc,
@@ -3135,13 +3136,23 @@ async function fs7CreateLeague(league) {
                   return rows[0];
 }
 
+function fs7NormalizeTeamName(value) {
+                  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                    .trim().replace(/\s+/g, ' ').toLocaleLowerCase('es');
+}
+
 async function fs7GetTeam(leagueId, teamName) {
+                  // Leer por liga y comparar nombres normalizados evita crear otra ficha
+                  // por diferencias de mayúsculas, acentos o espacios. Si ya hay duplicados,
+                  // elegir siempre el registro más antiguo como referencia estable.
                   const rows = await fs7Request(
                     'fs7_teams?league_id=eq.' + encodeURIComponent(leagueId) +
-                    '&name=eq.' + encodeURIComponent(teamName) +
-                    '&select=id,league_id,name,sort_order,last5&limit=1'
+                    '&select=id,league_id,name,sort_order,last5,created_at&order=created_at.asc,id.asc&limit=500'
                   );
-                  return rows && rows[0] ? rows[0] : null;
+                  const wanted = fs7NormalizeTeamName(teamName);
+                  return Array.isArray(rows)
+                    ? (rows.find(row => fs7NormalizeTeamName(row.name) === wanted) || null)
+                    : null;
 }
 
 async function fs7CreateTeam(leagueId, teamName) {
@@ -3154,9 +3165,11 @@ async function fs7CreateTeam(leagueId, teamName) {
 }
 
 async function fs7SaveStats(teamId, stats) {
+                  // team_id debe tener una sola ficha estadística. Si hay una existente,
+                  // se actualiza; de lo contrario, se crea. Se comprueba la respuesta HTTP.
                   const existing = await fs7Request('fs7_team_stats?team_id=eq.' + encodeURIComponent(teamId) + '&select=team_id&limit=1');
                   const body = {team_id:teamId, ...stats};
-                  if (existing && existing[0]) {
+                  if (Array.isArray(existing) && existing.length) {
                     return fs7Request('fs7_team_stats?team_id=eq.' + encodeURIComponent(teamId), {method:'PATCH', prefer:'return=representation', body:JSON.stringify(body)});
                   }
                   return fs7Request('fs7_team_stats', {method:'POST', prefer:'return=representation', body:JSON.stringify(body)});
@@ -3204,24 +3217,29 @@ async function fs7SyncSavedStatsToScreen() {
                       const cfg = Object.values(FS7_LEAGUES).find(x => x.slug === dbLeague.slug);
                       if (!cfg) continue;
 
+                      // El orden cronológico es intencional: si existen fichas duplicadas,
+                      // la primera (más antigua) gana y las siguientes no pisan la tabla.
                       const teams = await fs7Request(
                         'fs7_teams?league_id=eq.' + encodeURIComponent(dbLeague.id) +
-                        '&select=id,name,fs7_team_stats(*)&limit=100'
+                        '&select=id,name,created_at,fs7_team_stats(*)&order=created_at.asc,id.asc&limit=500'
                       );
                       if (!Array.isArray(teams)) continue;
 
+                      const seen = new Set();
+                      const leagueKey = Object.keys(FS7_LEAGUES).find(k => FS7_LEAGUES[k].slug === cfg.slug);
+                      if (!leagueKey) continue;
                       for (const team of teams) {
+                        const key = fs7NormalizeTeamName(team.name);
+                        if (!key || seen.has(key)) continue;
+                        seen.add(key);
                         const stats = Array.isArray(team.fs7_team_stats) ? team.fs7_team_stats[0] : team.fs7_team_stats;
-                        if (!stats) continue;
-                        const leagueKey = Object.keys(FS7_LEAGUES).find(k => FS7_LEAGUES[k].slug === cfg.slug);
-                        if (leagueKey) fs7UpdateVisibleRow(leagueKey, team.name, stats);
+                        if (stats) fs7UpdateVisibleRow(leagueKey, team.name, stats);
                       }
                     }
                   } catch (error) {
                     console.warn('Football S7yle / no se pudieron sincronizar los datos guardados:', error);
                   }
 }
-
 window.addEventListener('DOMContentLoaded', () => {
                   setTimeout(fs7SyncSavedStatsToScreen, 250);
                   const teamInput = document.getElementById('fs7-team');
