@@ -49,24 +49,6 @@ async function apiGet(path) {
   return data.response || [];
 }
 
-
-  if (!response.ok || (data.errors && Object.keys(data.errors).length > 0)) {
-    console.error('API-Football detalle:', {
-      httpStatus: response.status,
-      errors: data.errors,
-      message: data.message
-    });
-
-    throw new Error(
-      'API-Football HTTP ' + response.status + ': ' +
-      JSON.stringify(data.errors || data.message || 'Error desconocido')
-    );
-  }
-
-  return data.response || [];
-}
-
-
   try {
     const teams = await apiGet('/teams?search=' + encodeURIComponent(teamName));
     if (!teams.length) {
